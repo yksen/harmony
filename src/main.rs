@@ -15,14 +15,17 @@ struct Handler;
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         info!("Connected as {}", ready.user.name);
-        let command = Command::create_global_command(&ctx.http, commands::ping::register()).await;
-        info!("Registered command: {:?}", command);
+        for command in commands::all() {
+            let res = Command::create_global_command(&ctx.http, command).await;
+            info!("Registered command: {:?}", res);
+        }
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::Command(command) = interaction {
             let content = match command.data.name.as_str() {
                 "ping" => Some(commands::ping::run(&command.data.options())),
+                "play" => Some(commands::play::run(&command.data.options())),
                 _ => None,
             };
 
