@@ -1,43 +1,16 @@
-mod commands;
-
 use log::{error, info};
-use serenity::all::{
-    Command, CreateInteractionResponse, CreateInteractionResponseMessage, Interaction,
-};
-use serenity::async_trait;
-use serenity::model::gateway::Ready;
-use serenity::prelude::*;
+use poise::serenity_prelude as serenity;
+use songbird::SerenityInit;
 use std::env;
 
-struct Handler;
+struct Data {}
+type Error = Box<dyn std::error::Error + Send + Sync>;
+type Context<'a> = poise::Context<'a, Data, Error>;
 
-#[async_trait]
-impl EventHandler for Handler {
-    async fn ready(&self, ctx: Context, ready: Ready) {
-        info!("Connected as {}", ready.user.name);
-        for command in commands::all() {
-            let res = Command::create_global_command(&ctx.http, command).await;
-            info!("Registered command: {:?}", res);
-        }
-    }
-
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::Command(command) = interaction {
-            let content = match command.data.name.as_str() {
-                "ping" => Some(commands::ping::run(&command.data.options())),
-                "play" => Some(commands::play::run(&command.data.options())),
-                _ => None,
-            };
-
-            if let Some(content) = content {
-                let data = CreateInteractionResponseMessage::new().content(content);
-                let builder = CreateInteractionResponse::Message(data);
-                if let Err(why) = command.create_response(&ctx.http, builder).await {
-                    error!("Cannot respond to command: {:?}", why);
-                }
-            }
-        }
-    }
+#[poise::command(slash_command, prefix_command)]
+async fn ping(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("Pong").await?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -46,12 +19,27 @@ async fn main() {
     dotenv::dotenv().expect("Failed to read .env file");
 
     let token = env::var("DISCORD_TOKEN").expect("Expected a `DISCORD_TOKEN` in the environment");
-    let mut client = Client::builder(&token, GatewayIntents::empty())
-        .event_handler(Handler)
-        .await
-        .expect("Err creating client");
+    let intents = serenity::GatewayIntents::non_privileged();
 
-    if let Err(why) = client.start().await {
+    let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![ping()],
+            ..Default::default()
+        })
+        .setup(|ctx, _ready, framework| {
+            Box::pin(async move {
+                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                Ok(Data {})
+            })
+        })
+        .build();
+
+    let client = serenity::ClientBuilder::new(token, intents)
+        .framework(framework)
+        .register_songbird()
+        .await;
+
+    if let Err(why) = client.unwrap().start().await {
         error!("Client error: {:?}", why);
     }
 }
