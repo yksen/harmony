@@ -8,8 +8,9 @@ dotenv = "0.15.0"
 flexi_logger = "0.29.8"
 log = "0.4.22"
 poise = "0.6.1"
-reqwest = "0.12.12"
+reqwest = "0.11.27"
 rspotify = "0.14.0"
 serenity = { version = "0.12.4", features = ["client", "gateway", "model", "rustls_backend", "collector"] }
 songbird = "0.4.6"
+symphonia = { version = "0.5.4", features = ["all"] }
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
