@@ -22,7 +22,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![commands::ping(), commands::play()],
+            commands: vec![commands::ping(), commands::play(), commands::skip()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
