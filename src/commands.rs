@@ -29,7 +29,9 @@ pub async fn play(
         .and_then(|voice_state| voice_state.channel_id);
 
     if let Some(channel) = sender_channel {
-        manager.join(guild, channel).await?;
+        if let Ok(handler_lock) = manager.join(guild, channel).await {
+            let _ = handler_lock.lock().await;
+        }
 
         if let Some(handler_lock) = manager.get(guild) {
             let mut handler = handler_lock.lock().await;
@@ -41,7 +43,8 @@ pub async fn play(
             let song_name = input.aux_metadata().await?.title.unwrap_or_default();
 
             let _ = handler.play_input(input);
-            // let _ = handler.enqueue_input(input);
+            // let _ = handler.enqueue_input(source.into()).await;
+
             ctx.say(format!("Queued ***{artist} - {song_name}***"))
                 .await?;
         }

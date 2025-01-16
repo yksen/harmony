@@ -17,12 +17,13 @@ async fn main() {
     tracing_subscriber::fmt::init();
     dotenv::dotenv().expect("Failed to read .env file");
 
-    let token = env::var("DISCORD_TOKEN").expect("Expected a `DISCORD_TOKEN` in the environment");
+    let token = env::var("DISCORD_TOKEN").expect("Expected a DISCORD_TOKEN in the environment");
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![commands::ping(), commands::play(), commands::skip()],
+            on_error: |error| Box::pin(on_error(error)),
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
@@ -42,5 +43,19 @@ async fn main() {
 
     if let Err(why) = client.unwrap().start().await {
         error!("Client error: {:?}", why);
+    }
+}
+
+async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
+    match error {
+        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
+        poise::FrameworkError::Command { error, ctx, .. } => {
+            error!("Error in command `{}`: {:?}", ctx.command().name, error,);
+        }
+        error => {
+            if let Err(e) = poise::builtins::on_error(error).await {
+                error!("Error while handling error: {}", e)
+            }
+        }
     }
 }
