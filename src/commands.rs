@@ -1,6 +1,16 @@
+use crate::{Context, Error};
+use serenity::async_trait;
+use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 use tracing::info;
 
-use crate::{Context, Error};
+struct TrackEndNotifier {}
+
+#[async_trait]
+impl VoiceEventHandler for TrackEndNotifier {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
+        None
+    }
+}
 
 /// Ping command
 #[poise::command(slash_command, prefix_command)]
@@ -15,41 +25,40 @@ pub async fn play(
     ctx: Context<'_>,
     #[description = "YouTube URL"] query: String,
 ) -> Result<(), Error> {
+    let (guild_id, channel_id) = {
+        let guild = ctx.guild().unwrap();
+        let channel_id = guild
+            .voice_states
+            .get(&ctx.author().id)
+            .and_then(|voice_state| voice_state.channel_id);
+
+        (guild.id, channel_id)
+    };
+
     let manager = songbird::get(ctx.serenity_context())
         .await
         .expect("Songbird Voice client has not been initialized")
         .clone();
 
-    let guild = ctx.guild_id().unwrap();
-    let sender_channel = ctx
-        .guild()
-        .unwrap()
-        .voice_states
-        .get(&ctx.author().id)
-        .and_then(|voice_state| voice_state.channel_id);
-
-    if let Some(channel) = sender_channel {
-        if let Ok(handler_lock) = manager.join(guild, channel).await {
-            let _ = handler_lock.lock().await;
-        }
-
-        if let Some(handler_lock) = manager.get(guild) {
+    if let Some(channel) = channel_id {
+        if let Ok(handler_lock) = manager.join(guild_id, channel).await {
             let mut handler = handler_lock.lock().await;
-            let client = ctx.data().http_client.clone();
-            let source = songbird::input::YoutubeDl::new(client, query);
-
-            let mut input = songbird::input::Input::from(source);
-            let artist = input.aux_metadata().await?.artist.unwrap_or_default();
-            let song_name = input.aux_metadata().await?.title.unwrap_or_default();
-
-            let _ = handler.play_input(input);
-            // let _ = handler.enqueue_input(source.into()).await;
-
-            ctx.say(format!("Queued ***{artist} - {song_name}***"))
-                .await?;
+            handler.add_global_event(Event::Track(songbird::TrackEvent::End), TrackEndNotifier {});
         }
     } else {
-        ctx.say("Not in a voice channel").await?;
+        ctx.say("You are not in a voice channel").await?;
+    }
+
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let mut handler = handler_lock.lock().await;
+        let client = ctx.data().http_client.clone();
+        let source = songbird::input::YoutubeDl::new(client, query);
+
+        // TODO: Print metadata
+        ctx.say("Song queued").await?;
+
+        let input = songbird::input::Input::from(source);
+        handler.enqueue_input(input).await;
     }
 
     Ok(())
