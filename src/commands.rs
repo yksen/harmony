@@ -1,16 +1,6 @@
-use crate::{Context, Error};
-use serenity::async_trait;
-use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
+use crate::{handlers, Context, Error};
+use songbird::{input::Compose, Event};
 use tracing::info;
-
-struct TrackEndNotifier {}
-
-#[async_trait]
-impl VoiceEventHandler for TrackEndNotifier {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
-        None
-    }
-}
 
 /// Ping command
 #[poise::command(slash_command, prefix_command)]
@@ -43,7 +33,10 @@ pub async fn play(
     if let Some(channel) = channel_id {
         if let Ok(handler_lock) = manager.join(guild_id, channel).await {
             let mut handler = handler_lock.lock().await;
-            handler.add_global_event(Event::Track(songbird::TrackEvent::End), TrackEndNotifier {});
+            handler.add_global_event(
+                Event::Track(songbird::TrackEvent::End),
+                handlers::TrackEndNotifier {},
+            );
         }
     } else {
         ctx.say("You are not in a voice channel").await?;

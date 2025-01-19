@@ -1,8 +1,8 @@
 mod commands;
+mod handlers;
 
 use poise::serenity_prelude as serenity;
 use songbird::SerenityInit;
-use std::env;
 use tracing::{error, info};
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -17,7 +17,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     dotenv::dotenv().expect("Failed to read .env file");
 
-    let token = env::var("DISCORD_TOKEN").expect("Expected a DISCORD_TOKEN in the environment");
+    let token = std::env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN in the environment");
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
