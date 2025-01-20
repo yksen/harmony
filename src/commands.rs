@@ -15,6 +15,8 @@ pub async fn play(
     ctx: Context<'_>,
     #[description = "YouTube URL"] query: String,
 ) -> Result<(), Error> {
+    ctx.defer().await?;
+
     let (guild_id, channel_id) = {
         let guild = ctx.guild().unwrap();
         let channel_id = guild
@@ -45,13 +47,22 @@ pub async fn play(
     if let Some(handler_lock) = manager.get(guild_id) {
         let mut handler = handler_lock.lock().await;
         let client = ctx.data().http_client.clone();
-        let source = songbird::input::YoutubeDl::new(client, query);
+        let mut source = songbird::input::YoutubeDl::new(client, query);
 
-        // TODO: Print metadata
-        ctx.say("Song queued").await?;
-
-        let input = songbird::input::Input::from(source);
+        let input = songbird::input::Input::from(source.clone());
         handler.enqueue_input(input).await;
+
+        // TODO: Faster way to get metadata
+        if let Ok(metadata) = source.aux_metadata().await {
+            ctx.say(format!(
+                "***{} - {}*** queued",
+                metadata.artist.as_ref().unwrap_or(&"<UNKNOWN>".to_string()),
+                metadata.title.as_ref().unwrap_or(&"<UNKNOWN>".to_string()),
+            ))
+            .await?;
+        } else {
+            ctx.say("Song queued").await?;
+        }
     }
 
     Ok(())
