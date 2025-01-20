@@ -1,0 +1,1 @@
+A self-hosted Discord music bot with YouTube support

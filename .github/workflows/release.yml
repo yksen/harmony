@@ -1,0 +1,31 @@
+name: Build and release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ubuntu-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set archive path
+      run: echo "ARCHIVE_PATH=${{ vars.PROJECT_NAME }}_${{ github.ref_name }}_${{ runner.os }}_${{ runner.arch }}.xz" >> $GITHUB_ENV
+    - name: Build
+      run: cargo build -r
+    - name: Package the binary
+      run: |
+        cd target/release
+        tar -cJf ${{ env.ARCHIVE_PATH }} ${{ vars.PROJECT_NAME }}
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: target/release/${{ env.ARCHIVE_PATH }}

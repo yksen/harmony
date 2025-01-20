@@ -15,7 +15,7 @@ pub struct Data {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    dotenv::dotenv().expect("Failed to read .env file");
+    dotenv::dotenv().unwrap_or_default();
 
     let token = std::env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN in the environment");
     let intents = serenity::GatewayIntents::non_privileged();
