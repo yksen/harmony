@@ -3,7 +3,7 @@ mod handlers;
 
 use poise::serenity_prelude as serenity;
 use songbird::SerenityInit;
-use tracing::{error, info};
+use tracing::error;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -22,7 +22,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![commands::ping(), commands::play(), commands::skip()],
+            commands: commands::all(),
             on_error: |error| Box::pin(on_error(error)),
             ..Default::default()
         })

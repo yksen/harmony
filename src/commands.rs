@@ -1,20 +1,21 @@
-use crate::{handlers, Context, Error};
+use crate::{handlers, Context, Data, Error};
+use serenity::prelude::TypeMapKey;
 use songbird::{input::Compose, Event};
-use tracing::info;
+
+pub fn all() -> Vec<poise::Command<Data, Error>> {
+    vec![ping(), play(), skip(), now_playing()]
+}
 
 /// Ping command
 #[poise::command(slash_command, prefix_command)]
-pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
+async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("Pong").await?;
     Ok(())
 }
 
 /// Play a song
 #[poise::command(slash_command, prefix_command, guild_only)]
-pub async fn play(
-    ctx: Context<'_>,
-    #[description = "YouTube URL"] query: String,
-) -> Result<(), Error> {
+async fn play(ctx: Context<'_>, #[description = "YouTube URL"] query: String) -> Result<(), Error> {
     ctx.defer().await?;
 
     let (guild_id, channel_id) = {
@@ -50,16 +51,16 @@ pub async fn play(
         let mut source = songbird::input::YoutubeDl::new(client, query);
 
         let input = songbird::input::Input::from(source.clone());
-        handler.enqueue_input(input).await;
+        let handle = handler.enqueue_input(input).await;
 
         // TODO: Faster way to get metadata
         if let Ok(metadata) = source.aux_metadata().await {
-            ctx.say(format!(
-                "***{} - {}*** queued",
-                metadata.artist.as_ref().unwrap_or(&"<UNKNOWN>".to_string()),
-                metadata.title.as_ref().unwrap_or(&"<UNKNOWN>".to_string()),
-            ))
-            .await?;
+            let title = metadata.title.unwrap_or(fallback_title());
+
+            let mut typemap = handle.typemap().write().await;
+            typemap.insert::<SongTitle>(title.clone());
+
+            ctx.say(format!("Queued **{}**", title)).await?;
         } else {
             ctx.say("Song queued").await?;
         }
@@ -70,7 +71,7 @@ pub async fn play(
 
 /// Skip the current song
 #[poise::command(slash_command, prefix_command, guild_only)]
-pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
+async fn skip(ctx: Context<'_>) -> Result<(), Error> {
     let manager = songbird::get(ctx.serenity_context())
         .await
         .expect("Songbird Voice client has not been initialized")
@@ -91,4 +92,43 @@ pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+struct SongTitle;
+
+impl TypeMapKey for SongTitle {
+    type Value = String;
+}
+
+/// Show the currently playing song
+#[poise::command(slash_command, prefix_command, guild_only, rename = "now-playing")]
+async fn now_playing(ctx: Context<'_>) -> Result<(), Error> {
+    let manager = songbird::get(ctx.serenity_context())
+        .await
+        .expect("Songbird Voice client has not been initialized")
+        .clone();
+
+    let guild_id = ctx.guild_id().unwrap();
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let handler = handler_lock.lock().await;
+        let queue = handler.queue();
+        if let Some(track) = queue.current() {
+            let typemap = track.typemap().read().await;
+            let title = typemap
+                .get::<SongTitle>()
+                .cloned()
+                .unwrap_or_else(fallback_title);
+            ctx.say(format!("Now playing **{}**", title)).await?;
+        } else {
+            ctx.say("Nothing is playing").await?;
+        }
+    } else {
+        ctx.say("Not in a voice channel").await?;
+    }
+
+    Ok(())
+}
+
+fn fallback_title() -> String {
+    "<UNKNOWN>".to_string()
 }
