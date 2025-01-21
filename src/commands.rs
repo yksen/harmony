@@ -3,7 +3,7 @@ use serenity::prelude::TypeMapKey;
 use songbird::{input::Compose, Event};
 
 pub fn all() -> Vec<poise::Command<Data, Error>> {
-    vec![ping(), play(), skip(), now_playing()]
+    vec![ping(), play(), skip(), now_playing(), queue()]
 }
 
 /// Ping command
@@ -60,7 +60,7 @@ async fn play(ctx: Context<'_>, #[description = "YouTube URL"] query: String) ->
             let mut typemap = handle.typemap().write().await;
             typemap.insert::<SongTitle>(title.clone());
 
-            ctx.say(format!("Queued **{}**", title)).await?;
+            ctx.say(format!("Queued **{title}**")).await?;
         } else {
             ctx.say("Song queued").await?;
         }
@@ -118,7 +118,7 @@ async fn now_playing(ctx: Context<'_>) -> Result<(), Error> {
                 .get::<SongTitle>()
                 .cloned()
                 .unwrap_or_else(fallback_title);
-            ctx.say(format!("Now playing **{}**", title)).await?;
+            ctx.say(format!("Now playing **{title}**")).await?;
         } else {
             ctx.say("Nothing is playing").await?;
         }
@@ -131,4 +131,39 @@ async fn now_playing(ctx: Context<'_>) -> Result<(), Error> {
 
 fn fallback_title() -> String {
     "<UNKNOWN>".to_string()
+}
+
+/// Show the current queue
+#[poise::command(slash_command, prefix_command, guild_only)]
+async fn queue(ctx: Context<'_>) -> Result<(), Error> {
+    let manager = songbird::get(ctx.serenity_context())
+        .await
+        .expect("Songbird Voice client has not been initialized")
+        .clone();
+
+    let guild_id = ctx.guild_id().unwrap();
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let handler = handler_lock.lock().await;
+        let queue = handler.queue();
+
+        let mut message = "Queue is empty".to_string();
+        for (index, track) in queue.current_queue().iter().enumerate() {
+            let typemap = track.typemap().read().await;
+            let title = typemap
+                .get::<SongTitle>()
+                .cloned()
+                .unwrap_or_else(fallback_title);
+            if index == 0 {
+                message = format!("Now playing **{title}**\n");
+            } else {
+                message.push_str(&format!("{index}. {title}\n"));
+            }
+        }
+
+        ctx.say(message).await?;
+    } else {
+        ctx.say("Not in a voice channel").await?;
+    }
+
+    Ok(())
 }
