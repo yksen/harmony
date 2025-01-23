@@ -38,7 +38,10 @@ async fn play(ctx: Context<'_>, #[description = "YouTube URL"] query: String) ->
             let mut handler = handler_lock.lock().await;
             handler.add_global_event(
                 Event::Track(songbird::TrackEvent::End),
-                handlers::TrackEndNotifier {},
+                handlers::TrackEndNotifier {
+                    manager: manager.clone(),
+                    guild_id,
+                },
             );
         }
     } else {

@@ -30,7 +30,7 @@ async fn main() {
     if args.update {
         if let Err(why) = update() {
             println!();
-            error!("\nUpdate failed: {why}");
+            error!("Update failed: {why}");
         }
         return;
     }
