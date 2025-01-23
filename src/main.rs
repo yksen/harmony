@@ -1,9 +1,10 @@
 mod commands;
 mod handlers;
 
+use clap::Parser;
 use poise::serenity_prelude as serenity;
 use songbird::SerenityInit;
-use tracing::error;
+use tracing::{error, info};
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -12,10 +13,27 @@ pub struct Data {
     http_client: reqwest::Client,
 }
 
+#[derive(Parser)]
+#[command(version, about)]
+struct Args {
+    /// Update to the latest version
+    #[arg(long, short)]
+    update: bool,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
     dotenv::dotenv().unwrap_or_default();
+
+    let args = Args::parse();
+    if args.update {
+        if let Err(why) = update() {
+            println!();
+            error!("\nUpdate failed: {why}");
+        }
+        return;
+    }
 
     let token = std::env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN in the environment");
     let intents = serenity::GatewayIntents::non_privileged();
@@ -44,6 +62,21 @@ async fn main() {
     if let Err(why) = client.unwrap().start().await {
         error!("Client error: {:?}", why);
     }
+}
+
+fn update() -> Result<(), Box<dyn std::error::Error>> {
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner("yksen")
+        .repo_name("harmony")
+        .bin_name("harmony")
+        .show_download_progress(true)
+        .current_version(env!("CARGO_PKG_VERSION"))
+        .build()?
+        .update()?;
+
+    println!();
+    info!("Update successful: {status}");
+    Ok(())
 }
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
