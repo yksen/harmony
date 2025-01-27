@@ -16,7 +16,7 @@ pub struct Data {
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {
-    /// Update to the latest version
+    /// Check for updates
     #[arg(long, short)]
     update: bool,
 }
@@ -64,7 +64,7 @@ async fn main() {
     }
 }
 
-fn update() -> Result<(), Box<dyn std::error::Error>> {
+fn update() -> anyhow::Result<()> {
     let status = self_update::backends::github::Update::configure()
         .repo_owner("yksen")
         .repo_name("harmony")

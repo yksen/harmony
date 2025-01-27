@@ -33,39 +33,42 @@ async fn play(ctx: Context<'_>, #[description = "YouTube URL"] query: String) ->
         .expect("Songbird Voice client has not been initialized")
         .clone();
 
-    if let Some(channel) = channel_id {
-        if let Ok(handler_lock) = manager.join(guild_id, channel).await {
-            let mut handler = handler_lock.lock().await;
-            handler.add_global_event(
-                Event::Track(songbird::TrackEvent::End),
-                handlers::TrackEndNotifier {
-                    manager: manager.clone(),
-                    guild_id,
-                },
-            );
-        }
-    } else {
-        ctx.say("You are not in a voice channel").await?;
-    }
+    let client = ctx.data().http_client.clone();
+    let mut source = songbird::input::YoutubeDl::new(client, query);
+    let input = songbird::input::Input::from(source.clone());
 
-    if let Some(handler_lock) = manager.get(guild_id) {
-        let mut handler = handler_lock.lock().await;
-        let client = ctx.data().http_client.clone();
-        let mut source = songbird::input::YoutubeDl::new(client, query);
-
-        let input = songbird::input::Input::from(source.clone());
-        let handle = handler.enqueue_input(input).await;
-
-        // TODO: Faster way to get metadata
-        if let Ok(metadata) = source.aux_metadata().await {
+    match source.aux_metadata().await {
+        Ok(metadata) => {
             let title = metadata.title.unwrap_or(fallback_title());
 
-            let mut typemap = handle.typemap().write().await;
-            typemap.insert::<SongTitle>(title.clone());
+            if let Some(channel) = channel_id {
+                if let Ok(handler_lock) = manager.join(guild_id, channel).await {
+                    let mut handler = handler_lock.lock().await;
+                    handler.add_global_event(
+                        Event::Track(songbird::TrackEvent::End),
+                        handlers::TrackEndNotifier {
+                            manager: manager.clone(),
+                            guild_id,
+                        },
+                    );
+                } else {
+                    ctx.say("Failed to join voice channel").await?;
+                }
 
-            ctx.say(format!("Queued **{title}**")).await?;
-        } else {
-            ctx.say("Song queued").await?;
+                if let Some(handler_lock) = manager.get(guild_id) {
+                    let mut handler = handler_lock.lock().await;
+                    let track_handle = handler.enqueue_input(input).await;
+                    let mut type_map = track_handle.typemap().write().await;
+                    type_map.insert::<SongTitle>(title.clone());
+                    ctx.say(format!("Queued **{title}**")).await?;
+                }
+            } else {
+                ctx.say("You are not in a voice channel").await?;
+            }
+        }
+        Err(why) => {
+            ctx.say(format!("Failed to get metadata of the song: {why}"))
+                .await?;
         }
     }
 
@@ -164,6 +167,26 @@ async fn queue(ctx: Context<'_>) -> Result<(), Error> {
         }
 
         ctx.say(message).await?;
+    } else {
+        ctx.say("Not in a voice channel").await?;
+    }
+
+    Ok(())
+}
+
+/// Loop the current queue
+#[poise::command(slash_command, prefix_command, guild_only, rename = "loop")]
+async fn loop_queue(ctx: Context<'_>) -> Result<(), Error> {
+    let manager = songbird::get(ctx.serenity_context())
+        .await
+        .expect("Songbird Voice client has not been initialized")
+        .clone();
+
+    let guild_id = ctx.guild_id().unwrap();
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let handler = handler_lock.lock().await;
+        let queue = handler.queue();
+        ctx.say("Looping queue").await?;
     } else {
         ctx.say("Not in a voice channel").await?;
     }
