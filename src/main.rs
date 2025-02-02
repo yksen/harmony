@@ -14,6 +14,7 @@ use tracing::{error, info};
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
+#[derive(Debug)]
 struct GuildData {
     loop_queue: bool,
 }
@@ -54,8 +55,7 @@ async fn main() {
     let args = Args::parse();
     if args.update {
         if let Err(why) = update() {
-            println!();
-            error!("Update failed: {why}");
+            println!("\nUpdate failed: {why}");
         }
         return;
     }
@@ -97,8 +97,7 @@ fn update() -> anyhow::Result<()> {
         .build()?
         .update()?;
 
-    println!();
-    info!("Update successful: {status}");
+    println!("\nUpdate successful: {status}");
     Ok(())
 }
 
