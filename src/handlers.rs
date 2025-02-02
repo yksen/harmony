@@ -3,7 +3,9 @@ use crate::{
     GuildData,
 };
 use serenity::{all::GuildId, async_trait};
-use songbird::{Event, EventContext, EventHandler as VoiceEventHandler, Songbird};
+use songbird::{
+    tracks::PlayMode, Event, EventContext, EventHandler as VoiceEventHandler, Songbird,
+};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -25,13 +27,14 @@ impl VoiceEventHandler for TrackEndNotifier {
             return None;
         };
 
-        if let EventContext::Track(&[(_state, track)]) = _ctx {
+        if let EventContext::Track(&[(state, track)]) = _ctx {
             let type_map = track.typemap().read().await;
             let source = type_map.get::<SongSource>().cloned().unwrap();
             let input = songbird::input::Input::from(source.clone());
             let should_loop = {
                 let mut data = self.guild_data.lock().unwrap();
                 data.entry(self.guild_id).or_default().loop_queue
+                    && matches!(state.playing, PlayMode::End)
             };
 
             if should_loop {
