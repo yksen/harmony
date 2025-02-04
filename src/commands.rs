@@ -5,7 +5,6 @@ use songbird::{
     Event, Songbird,
 };
 use std::sync::Arc;
-use tracing::info;
 
 pub struct SongTitle;
 
@@ -19,7 +18,7 @@ impl TypeMapKey for SongSource {
     type Value = YoutubeDl;
 }
 
-pub fn all() -> Vec<poise::Command<Data, Error>> {
+pub(crate) fn all() -> Vec<poise::Command<Data, Error>> {
     vec![ping(), play(), skip(), now_playing(), queue(), loop_queue()]
 }
 

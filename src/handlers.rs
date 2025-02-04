@@ -15,19 +15,19 @@ use tracing::{error, info};
 pub struct TrackEndNotifier {
     pub manager: Arc<Songbird>,
     pub guild_id: GuildId,
-    pub guild_data: Arc<Mutex<HashMap<GuildId, GuildData>>>,
+    pub(crate) guild_data: Arc<Mutex<HashMap<GuildId, GuildData>>>,
 }
 
 #[async_trait]
 impl VoiceEventHandler for TrackEndNotifier {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
+    async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
         info!("Track ended in guild {}", self.guild_id);
 
         let Some(handler_lock) = self.manager.get(self.guild_id) else {
             return None;
         };
 
-        if let EventContext::Track(&[(state, track)]) = _ctx {
+        if let EventContext::Track(&[(state, track)]) = ctx {
             let type_map = track.typemap().read().await;
             let source = type_map.get::<SongSource>().cloned().unwrap();
             let input = songbird::input::Input::from(source.clone());
@@ -38,8 +38,7 @@ impl VoiceEventHandler for TrackEndNotifier {
             };
 
             if should_loop {
-                let mut handler = handler_lock.lock().await;
-                let track_handle = handler.enqueue_input(input).await;
+                let track_handle = handler_lock.lock().await.enqueue_input(input).await;
                 let title = type_map.get::<SongTitle>().cloned().unwrap();
                 let mut type_map = track_handle.typemap().write().await;
                 type_map.insert::<SongTitle>(title);
