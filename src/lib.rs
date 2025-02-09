@@ -14,29 +14,15 @@ use tracing::error;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct GuildData {
     loop_queue: bool,
 }
 
-impl Default for GuildData {
-    fn default() -> Self {
-        Self { loop_queue: false }
-    }
-}
-
+#[derive(Debug, Default)]
 struct Data {
     http_client: reqwest::Client,
     guild_data: Arc<Mutex<HashMap<GuildId, GuildData>>>,
-}
-
-impl Default for Data {
-    fn default() -> Self {
-        Self {
-            http_client: reqwest::Client::new(),
-            guild_data: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
 }
 
 pub async fn run(token: String) -> Result<()> {
@@ -81,4 +67,3 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         }
     }
 }
-

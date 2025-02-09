@@ -23,18 +23,16 @@ impl VoiceEventHandler for TrackEndNotifier {
     async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
         info!("Track ended in guild {}", self.guild_id);
 
-        let Some(handler_lock) = self.manager.get(self.guild_id) else {
-            return None;
-        };
+        let handler_lock = self.manager.get(self.guild_id)?;
 
         if let EventContext::Track(&[(state, track)]) = ctx {
             let type_map = track.typemap().read().await;
             let source = type_map.get::<SongSource>().cloned().unwrap();
             let input = songbird::input::Input::from(source.clone());
+            let song_ended = matches!(state.playing, PlayMode::End);
             let should_loop = {
                 let mut data = self.guild_data.lock().unwrap();
-                data.entry(self.guild_id).or_default().loop_queue
-                    && matches!(state.playing, PlayMode::End)
+                data.entry(self.guild_id).or_default().loop_queue && song_ended
             };
 
             if should_loop {

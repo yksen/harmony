@@ -43,7 +43,7 @@ async fn try_join(ctx: &Context<'_>) -> Result<(), Error> {
         (guild.id, channel)
     };
 
-    let manager = get_manager(&ctx).await;
+    let manager = get_manager(ctx).await;
     let in_call = manager.get(guild_id).is_some();
 
     if author_channel.is_none() {
