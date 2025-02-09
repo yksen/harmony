@@ -32,7 +32,7 @@ jobs:
           args: "--release"
           strip: true
       - name: Publish artifacts and release
-        uses: yksen/actions-rust-release@v0
+        uses: houseabsolute/actions-rust-release@v0
         with:
           archive-name: harmony-${{ matrix.platform.target }}
           changes-file: ""
