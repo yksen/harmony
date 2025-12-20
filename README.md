@@ -9,3 +9,11 @@
 1. Create a [new application](https://discord.com/developers/applications) for the bot account
 2. Copy the generated token to `.env` file or define `DISCORD_TOKEN` environment variable
 3. Add the application to your server using the generated install link
+
+## TODO:
+- [ ] Buttons for queue management under bot messages
+- [ ] Playback speed control
+- [ ] Nightcore filter
+- [ ] Playlist support
+- [ ] Docker image
+- [ ] More sources (Spotify, SoundCloud, etc.)
