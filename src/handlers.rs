@@ -1,10 +1,9 @@
-use crate::{
-    commands::{SongSource, SongTitle},
-    GuildData,
-};
+use crate::{commands::TrackData, GuildData};
 use serenity::{all::GuildId, async_trait};
 use songbird::{
-    tracks::PlayMode, Event, EventContext, EventHandler as VoiceEventHandler, Songbird,
+    input::Input,
+    tracks::{PlayMode, Track},
+    Event, EventContext, EventHandler as VoiceEventHandler, Songbird,
 };
 use std::{
     collections::HashMap,
@@ -26,21 +25,17 @@ impl VoiceEventHandler for TrackEndNotifier {
         let handler_lock = self.manager.get(self.guild_id)?;
 
         if let EventContext::Track(&[(state, track)]) = ctx {
-            let type_map = track.typemap().read().await;
-            let source = type_map.get::<SongSource>().cloned().unwrap();
-            let input = songbird::input::Input::from(source.clone());
+            let data = track.data::<TrackData>();
             let song_ended = matches!(state.playing, PlayMode::End);
             let should_loop = {
-                let mut data = self.guild_data.lock().unwrap();
-                data.entry(self.guild_id).or_default().loop_queue && song_ended
+                let mut guild_data = self.guild_data.lock().unwrap();
+                guild_data.entry(self.guild_id).or_default().loop_queue && song_ended
             };
 
             if should_loop {
-                let track_handle = handler_lock.lock().await.enqueue_input(input).await;
-                let title = type_map.get::<SongTitle>().cloned().unwrap();
-                let mut type_map = track_handle.typemap().write().await;
-                type_map.insert::<SongTitle>(title);
-                type_map.insert::<SongSource>(source);
+                let input = Input::from(data.source.clone());
+                let track = Track::new_with_data(input, data.clone());
+                handler_lock.lock().await.enqueue(track).await;
             } else if handler_lock.lock().await.queue().is_empty() {
                 if let Err(why) = self.manager.remove(self.guild_id).await {
                     error!("Failed to remove handler: {why}");

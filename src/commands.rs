@@ -1,21 +1,14 @@
 use crate::{handlers, Context, Data, Error};
-use serenity::prelude::TypeMapKey;
 use songbird::{
-    input::{Compose, YoutubeDl},
+    input::{Compose, Input, YoutubeDl},
+    tracks::Track,
     Event, Songbird,
 };
 use std::sync::Arc;
 
-pub struct SongTitle;
-
-impl TypeMapKey for SongTitle {
-    type Value = String;
-}
-
-pub struct SongSource;
-
-impl TypeMapKey for SongSource {
-    type Value = YoutubeDl;
+pub struct TrackData {
+    pub title: String,
+    pub source: YoutubeDl<'static>,
 }
 
 pub(crate) fn all() -> Vec<poise::Command<Data, Error>> {
@@ -93,8 +86,7 @@ async fn play(ctx: Context<'_>, #[description = "YouTube URL"] query: String) ->
     let manager = get_manager(&ctx).await;
     let client = ctx.data().http_client.clone();
 
-    let mut source = songbird::input::YoutubeDl::new(client, query);
-    let input = songbird::input::Input::from(source.clone());
+    let mut source = YoutubeDl::new(client, query);
 
     match source.aux_metadata().await {
         Ok(metadata) => {
@@ -102,11 +94,13 @@ async fn play(ctx: Context<'_>, #[description = "YouTube URL"] query: String) ->
 
             if let Some(handler_lock) = manager.get(ctx.guild_id().unwrap()) {
                 let mut handler = handler_lock.lock().await;
-                let track_handle = handler.enqueue_input(input).await;
                 let title = metadata.title.unwrap_or(fallback_title());
-                let mut type_map = track_handle.typemap().write().await;
-                type_map.insert::<SongTitle>(title.clone());
-                type_map.insert::<SongSource>(source);
+                let data = Arc::new(TrackData {
+                    title: title.clone(),
+                    source: source.clone(),
+                });
+                let track = Track::new_with_data(Input::from(source), data);
+                handler.enqueue(track).await;
                 ctx.say(format!("Queued **{title}**")).await?;
             }
         }
@@ -154,11 +148,7 @@ async fn now_playing(ctx: Context<'_>) -> Result<(), Error> {
         let handler = handler_lock.lock().await;
         let queue = handler.queue();
         if let Some(track) = queue.current() {
-            let typemap = track.typemap().read().await;
-            let title = typemap
-                .get::<SongTitle>()
-                .cloned()
-                .unwrap_or_else(fallback_title);
+            let title = track.data::<TrackData>().title.clone();
             ctx.say(format!("Now playing **{title}**")).await?;
         } else {
             ctx.say("Nothing is playing").await?;
@@ -182,11 +172,7 @@ async fn queue(ctx: Context<'_>) -> Result<(), Error> {
 
         let mut message = "Queue is empty".to_string();
         for (index, track) in queue.current_queue().iter().enumerate() {
-            let typemap = track.typemap().read().await;
-            let title = typemap
-                .get::<SongTitle>()
-                .cloned()
-                .unwrap_or_else(fallback_title);
+            let title = track.data::<TrackData>().title.clone();
             if index == 0 {
                 message = format!("Now playing **{title}**\n");
             } else {
